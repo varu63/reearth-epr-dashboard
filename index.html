@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReEarth — Battery Recovery Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EDEAE1;
+    --card:#F8F6EF;
+    --card-flat:#E4E0D4;
+    --ink:#1C2622;
+    --ink-soft:#54615A;
+    --ink-faint:#8B9289;
+    --line:#D2CBB8;
+    --line-soft:#DFDACB;
+    --green:#2E6B57;
+    --green-deep:#1D4A3C;
+    --green-pale:#DCE7DF;
+    --amber:#B8763B;
+    --amber-pale:#F0DFC7;
+    --rust:#A23F2E;
+    --rust-pale:#EFD9D1;
+    --blue:#33628C;
+    --blue-pale:#D9E2E9;
+    --radius-s:3px;
+    --radius-m:6px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Sans',sans-serif;
+    -webkit-font-smoothing:antialiased;
+    line-height:1.5;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .serif{font-family:'Fraunces',serif;}
+
+  a{color:inherit;}
+
+  /* ---------- Shell ---------- */
+  .shell{max-width:1180px;margin:0 auto;padding:0 28px 80px;}
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:26px 0 22px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:30px;
+    gap:20px;flex-wrap:wrap;
+  }
+  .brand{display:flex;align-items:center;gap:11px;}
+  .brand-mark{
+    width:34px;height:34px;border-radius:50%;
+    background:conic-gradient(from 200deg, var(--green) 0deg, var(--green-deep) 140deg, var(--amber) 250deg, var(--green) 360deg);
+    position:relative;flex:none;
+  }
+  .brand-mark::after{
+    content:"";position:absolute;inset:9px;border-radius:50%;background:var(--paper);
+  }
+  .brand-name{font-family:'Fraunces',serif;font-size:20px;font-weight:600;letter-spacing:0.2px;}
+  .brand-sub{font-size:11.5px;color:var(--ink-faint);margin-top:1px;}
+
+  .view-toggle{
+    display:flex;background:var(--card-flat);border:1px solid var(--line);border-radius:100px;padding:3px;gap:2px;
+  }
+  .view-toggle button{
+    appearance:none;border:none;background:transparent;
+    font-family:'IBM Plex Sans',sans-serif;font-size:13.5px;font-weight:500;
+    color:var(--ink-soft);padding:8px 18px;border-radius:100px;cursor:pointer;
+    transition:background .18s ease,color .18s ease;
+  }
+  .view-toggle button.active{background:var(--ink);color:var(--paper);}
+  .view-toggle button:not(.active):hover{color:var(--ink);}
+
+  .lot-picker{
+    display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft);
+  }
+  .lot-picker select{
+    font-family:'IBM Plex Mono',monospace;font-size:12.5px;background:var(--card);
+    border:1px solid var(--line);border-radius:var(--radius-s);padding:7px 10px;color:var(--ink);
+  }
+
+  section{display:none;}
+  section.active{display:block;}
+
+  /* ================= CLIENT VIEW ================= */
+
+  .hero{
+    display:grid;grid-template-columns:1.25fr 1fr;gap:36px;
+    padding:34px 0 8px;
+  }
+  @media(max-width:860px){.hero{grid-template-columns:1fr;}}
+
+  .hero-eyebrow{font-size:12.5px;color:var(--ink-faint);margin-bottom:10px;}
+  .hero h1{
+    font-family:'Fraunces',serif;font-weight:500;font-size:clamp(28px,3.4vw,40px);
+    line-height:1.14;margin:0 0 14px;letter-spacing:-0.2px;
+  }
+  .hero p.lede{color:var(--ink-soft);font-size:15px;max-width:46ch;margin:0 0 22px;}
+
+  .lot-id-row{display:flex;align-items:center;gap:12px;margin-bottom:26px;flex-wrap:wrap;}
+  .lot-id{
+    font-family:'IBM Plex Mono',monospace;font-size:13.5px;background:var(--card-flat);
+    padding:6px 12px;border-radius:var(--radius-s);border:1px solid var(--line);
+  }
+  .status-pill{
+    display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;
+    padding:6px 13px;border-radius:100px;background:var(--green-pale);color:var(--green-deep);
+  }
+  .status-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--green);}
+
+  /* stepper */
+  .stepper{display:flex;position:relative;margin:8px 0 6px;}
+  .step{flex:1;display:flex;flex-direction:column;align-items:flex-start;position:relative;padding-right:6px;}
+  .step-track{
+    position:absolute;top:8px;left:0;right:0;height:2px;background:var(--line);z-index:0;
+  }
+  .step-node{
+    width:17px;height:17px;border-radius:50%;background:var(--card);
+    border:2px solid var(--line);z-index:1;margin-bottom:12px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .step.done .step-node{background:var(--green);border-color:var(--green);}
+  .step.done .step-node::after{content:"";width:5px;height:8px;border:solid var(--card);border-width:0 2px 2px 0;transform:rotate(45deg) translate(-1px,-1px);}
+  .step.current .step-node{background:var(--paper);border-color:var(--amber);box-shadow:0 0 0 4px var(--amber-pale);}
+  .step.current .step-node::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--amber);}
+  .step-label{font-size:12px;font-weight:500;color:var(--ink-soft);line-height:1.3;max-width:12ch;}
+  .step.done .step-label,.step.current .step-label{color:var(--ink);}
+  .step-line-fill{position:absolute;top:8px;left:0;height:2px;background:var(--green);z-index:0;}
+
+  .updated-note{font-size:12px;color:var(--ink-faint);margin-top:14px;}
+
+  .impact-card{
+    background:var(--green-deep);color:var(--paper);border-radius:var(--radius-m);
+    padding:26px 26px 22px;display:flex;flex-direction:column;gap:18px;
+  }
+  .impact-card h3{
+    font-family:'Fraunces',serif;font-weight:500;font-size:16px;margin:0;color:#EFE9D8;
+  }
+  .impact-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px 14px;}
+  .impact-item .num{font-family:'Fraunces',serif;font-size:26px;font-weight:600;line-height:1;}
+  .impact-item .lbl{font-size:11.5px;color:#B9CFC4;margin-top:6px;}
+
+  .section-title{
+    font-family:'Fraunces',serif;font-size:20px;font-weight:500;margin:0 0 4px;
+  }
+  .section-sub{font-size:13px;color:var(--ink-faint);margin:0 0 18px;}
+
+  .client-lower{display:grid;grid-template-columns:1.1fr 0.9fr;gap:36px;margin-top:46px;}
+  @media(max-width:860px){.client-lower{grid-template-columns:1fr;}}
+
+  .timeline{list-style:none;margin:0;padding:0;border-left:1px solid var(--line);}
+  .timeline li{position:relative;padding:0 0 26px 24px;}
+  .timeline li:last-child{padding-bottom:2px;}
+  .timeline li::before{
+    content:"";position:absolute;left:-5px;top:3px;width:9px;height:9px;border-radius:50%;
+    background:var(--card);border:2px solid var(--green);
+  }
+  .timeline li.pending::before{border-color:var(--line);}
+  .timeline .t-date{font-size:11.5px;color:var(--ink-faint);font-family:'IBM Plex Mono',monospace;margin-bottom:3px;}
+  .timeline .t-title{font-size:14px;font-weight:600;margin-bottom:3px;}
+  .timeline .t-desc{font-size:13px;color:var(--ink-soft);}
+  .timeline li.pending .t-title{color:var(--ink-faint);}
+
+  .doc-list{display:flex;flex-direction:column;gap:10px;margin-bottom:24px;}
+  .doc-card{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius-m);
+    padding:14px 16px;
+  }
+  .doc-info{display:flex;align-items:center;gap:12px;}
+  .doc-icon{
+    width:34px;height:34px;border-radius:var(--radius-s);background:var(--green-pale);
+    display:flex;align-items:center;justify-content:center;flex:none;
+  }
+  .doc-icon svg{width:16px;height:16px;}
+  .doc-name{font-size:13.5px;font-weight:600;}
+  .doc-meta{font-size:11.5px;color:var(--ink-faint);margin-top:2px;}
+  .doc-btn{
+    font-size:12px;font-weight:600;color:var(--green-deep);background:none;border:none;
+    cursor:pointer;padding:6px 4px;
+  }
+  .doc-card.locked{opacity:.5;}
+  .doc-card.locked .doc-btn{color:var(--ink-faint);}
+
+  .compliance-box{
+    border:1px solid var(--line);border-radius:var(--radius-m);padding:18px 18px 16px;background:var(--card);
+  }
+  .compliance-box .row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .compliance-box .row:last-child{margin-bottom:0;}
+  .compliance-box .k{font-size:13px;color:var(--ink-soft);}
+  .compliance-box .v{font-size:13px;font-weight:600;}
+  .badge-ok{color:var(--green-deep);}
+  .badge-pending{color:var(--amber);}
+
+  /* ================= TEAM VIEW ================= */
+
+  .team-header{display:flex;align-items:baseline;justify-content:space-between;padding:30px 0 22px;flex-wrap:wrap;gap:10px;}
+  .team-header h1{font-family:'Fraunces',serif;font-size:26px;font-weight:500;margin:0;}
+  .team-header .as-of{font-size:12px;color:var(--ink-faint);font-family:'IBM Plex Mono',monospace;}
+
+  .kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:38px;}
+  @media(max-width:960px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
+  .kpi{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius-m);
+    padding:16px 16px 14px;
+  }
+  .kpi .kpi-lbl{font-size:11px;color:var(--ink-faint);margin-bottom:8px;text-transform:none;}
+  .kpi .kpi-val{font-family:'Fraunces',serif;font-size:25px;font-weight:600;line-height:1;}
+  .kpi .kpi-delta{font-size:11px;margin-top:7px;color:var(--ink-soft);}
+  .kpi.warn{border-color:#DCC49B;background:var(--amber-pale);}
+  .kpi.warn .kpi-val{color:#7A4E1F;}
+  .kpi.warn .kpi-delta{color:#8A6A3D;}
+
+  .flow-wrap{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius-m);
+    padding:22px 10px 14px;margin-bottom:40px;overflow-x:auto;
+  }
+  .flow-wrap-head{display:flex;justify-content:space-between;align-items:baseline;padding:0 16px 14px;flex-wrap:wrap;gap:8px;}
+  .flow-wrap-head h2{font-family:'Fraunces',serif;font-weight:500;font-size:17px;margin:0;}
+  .flow-legend{display:flex;gap:16px;font-size:11.5px;color:var(--ink-soft);}
+  .flow-legend span{display:inline-flex;align-items:center;gap:6px;}
+  .flow-legend i{width:8px;height:8px;border-radius:2px;display:inline-block;}
+
+  .team-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:30px;}
+  @media(max-width:960px){.team-grid{grid-template-columns:1fr;}}
+
+  .panel-title{font-family:'Fraunces',serif;font-size:17px;font-weight:500;margin:0 0 14px;}
+
+  table.lots{width:100%;border-collapse:collapse;font-size:12.5px;}
+  table.lots th{
+    text-align:left;font-weight:500;color:var(--ink-faint);font-size:11px;
+    padding:0 10px 8px;border-bottom:1px solid var(--line);
+  }
+  table.lots td{padding:11px 10px;border-bottom:1px solid var(--line-soft);vertical-align:middle;}
+  table.lots tr:last-child td{border-bottom:none;}
+  table.lots .lid{font-family:'IBM Plex Mono',monospace;font-size:12px;}
+  .tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:100px;}
+  .tag.pass{background:var(--green-pale);color:var(--green-deep);}
+  .tag.hold{background:var(--amber-pale);color:#7A4E1F;}
+  .tag.reject{background:var(--rust-pale);color:var(--rust);}
+  .tag.progress{background:var(--blue-pale);color:var(--blue);}
+  .row-stage{color:var(--ink-soft);}
+
+  .alert-list{display:flex;flex-direction:column;gap:10px;margin-bottom:28px;}
+  .alert{
+    display:flex;gap:11px;padding:12px 13px;border-radius:var(--radius-m);border:1px solid var(--line);background:var(--card);
+  }
+  .alert.sev-high{border-color:#D9AD8C;background:#F5E4D5;}
+  .alert.sev-mid{border-color:#DCC49B;background:var(--amber-pale);}
+  .alert-dot{width:7px;height:7px;border-radius:50%;flex:none;margin-top:5px;}
+  .sev-high .alert-dot{background:var(--rust);}
+  .sev-mid .alert-dot{background:var(--amber);}
+  .alert-txt .a-title{font-size:12.5px;font-weight:600;}
+  .alert-txt .a-sub{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+
+  .qc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .qc-item{border:1px solid var(--line);border-radius:var(--radius-m);padding:13px 14px;background:var(--card);}
+  .qc-item .qc-lbl{font-size:11px;color:var(--ink-faint);margin-bottom:6px;}
+  .qc-item .qc-val{font-family:'Fraunces',serif;font-size:20px;font-weight:600;}
+  .qc-bar{height:4px;border-radius:2px;background:var(--line-soft);margin-top:8px;overflow:hidden;}
+  .qc-bar i{display:block;height:100%;background:var(--green);}
+
+  footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink-faint);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+
+  @media(max-width:600px){
+    .kpi-row{grid-template-columns:1fr 1fr;}
+    .stepper{overflow-x:auto;}
+    .impact-grid{grid-template-columns:1fr 1fr;}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div>
+        <div class="brand-name">ReEarth</div>
+        <div class="brand-sub">Battery waste recovery &amp; EPR compliance</div>
+      </div>
+    </div>
+    <div class="view-toggle" role="tablist" aria-label="Dashboard view">
+      <button id="btn-client" class="active" onclick="setView('client')">Client view</button>
+      <button id="btn-team" onclick="setView('team')">ReEarth team view</button>
+    </div>
+    <div class="lot-picker">
+      <span>Lot</span>
+      <select id="lot-select" onchange="renderClient()">
+        <option value="0">RE-BAT-2409-114</option>
+        <option value="1">RE-BAT-2409-098</option>
+        <option value="2">RE-BAT-2408-231</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- ================= CLIENT VIEW ================= -->
+  <section id="view-client" class="active">
+
+    <div class="hero">
+      <div>
+        <div class="hero-eyebrow">Shipment status</div>
+        <h1>Your battery waste is being recovered.</h1>
+        <p class="lede">Track collection, testing and material recovery for this lot, and download the evidence you need for EPR filing as soon as it's ready.</p>
+
+        <div class="lot-id-row">
+          <span class="lot-id" id="c-lotid">RE-BAT-2409-114</span>
+          <span class="status-pill"><span class="dot"></span><span id="c-statuspill">Processing</span></span>
+        </div>
+
+        <div class="stepper" id="stepper"></div>
+        <div class="updated-note" id="c-updated">Last updated 2 hours ago · Vaitarna Recycling Facility, Bhiwandi</div>
+      </div>
+
+      <div class="impact-card">
+        <h3>Recovery impact so far</h3>
+        <div class="impact-grid">
+          <div class="impact-item"><div class="num" id="i-received">18.4t</div><div class="lbl">Waste received</div></div>
+          <div class="impact-item"><div class="num" id="i-recovered">14.9t</div><div class="lbl">Material recovered</div></div>
+          <div class="impact-item"><div class="num" id="i-rate">81%</div><div class="lbl">Recovery rate</div></div>
+          <div class="impact-item"><div class="num" id="i-co2">6.1t</div><div class="lbl">CO₂e avoided</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="client-lower">
+      <div>
+        <h2 class="section-title">What's happened</h2>
+        <p class="section-sub">In plain terms — no jargon, just what's been done to your material.</p>
+        <ul class="timeline" id="c-timeline"></ul>
+      </div>
+
+      <div>
+        <h2 class="section-title">Documents</h2>
+        <p class="section-sub">Download as each one is issued.</p>
+        <div class="doc-list" id="c-docs"></div>
+
+        <h2 class="section-title" style="font-size:16px;margin-bottom:10px;">EPR eligibility</h2>
+        <div class="compliance-box">
+          <div class="row"><span class="k">Filing status</span><span class="v badge-pending" id="c-elig">Pending recovery certificate</span></div>
+          <div class="row"><span class="k">Category</span><span class="v">Li-ion — Portable</span></div>
+          <div class="row"><span class="k">Registered recycler</span><span class="v">ReEarth Circular Pvt. Ltd.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= TEAM VIEW ================= -->
+  <section id="view-team">
+
+    <div class="team-header">
+      <h1>Operations control room</h1>
+      <span class="as-of">Live · updated 09:42 IST, 4 Sep 2026</span>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-lbl">Lots gated-in today</div><div class="kpi-val">27</div><div class="kpi-delta">+4 vs yesterday</div></div>
+      <div class="kpi warn"><div class="kpi-lbl">Lots on hold</div><div class="kpi-val">5</div><div class="kpi-delta">2 awaiting investigation &gt;24h</div></div>
+      <div class="kpi"><div class="kpi-lbl">IQC pass rate</div><div class="kpi-val">93.1%</div><div class="kpi-delta">7-day avg 91.8%</div></div>
+      <div class="kpi"><div class="kpi-lbl">Recovery yield</div><div class="kpi-val">80.6%</div><div class="kpi-delta">Target 78%</div></div>
+      <div class="kpi warn"><div class="kpi-lbl">Mass balance variance</div><div class="kpi-val">1.4%</div><div class="kpi-delta">Tolerance ±1.5%</div></div>
+    </div>
+
+    <div class="flow-wrap">
+      <div class="flow-wrap-head">
+        <h2>Inbound → Processing → Outbound pipeline</h2>
+        <div class="flow-legend">
+          <span><i style="background:var(--green)"></i>Pass</span>
+          <span><i style="background:var(--amber)"></i>Hold / rework</span>
+          <span><i style="background:var(--rust)"></i>Reject / disposal</span>
+        </div>
+      </div>
+      <div id="flow-svg-holder"></div>
+    </div>
+
+    <div class="team-grid">
+      <div>
+        <h2 class="panel-title">Active lots</h2>
+        <table class="lots">
+          <thead><tr><th>Lot ID</th><th>Stage</th><th>Status</th><th>Age</th><th>Owner</th></tr></thead>
+          <tbody id="lots-body"></tbody>
+        </table>
+      </div>
+
+      <div>
+        <h2 class="panel-title">Alerts</h2>
+        <div class="alert-list" id="alerts-list"></div>
+
+        <h2 class="panel-title">QC snapshot</h2>
+        <div class="qc-grid" id="qc-grid"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>ReEarth Circular Pvt. Ltd. · Battery EPR traceability system</span>
+    <span>Client view shows shipment-level status only · Team view shows full lot &amp; QC detail</span>
+  </footer>
+</div>
+
+<script>
+/* ---------------- shared color tokens for SVG ---------------- */
+const COLORS = {
+  ink:'#1C2622', inkSoft:'#54615A', line:'#D2CBB8',
+  green:'#2E6B57', greenDeep:'#1D4A3C', greenPale:'#DCE7DF',
+  amber:'#B8763B', amberPale:'#F0DFC7',
+  rust:'#A23F2E', rustPale:'#EFD9D1',
+  blue:'#33628C', card:'#F8F6EF'
+};
+
+/* ---------------- view switching ---------------- */
+function setView(v){
+  document.getElementById('view-client').classList.toggle('active', v==='client');
+  document.getElementById('view-team').classList.toggle('active', v==='team');
+  document.getElementById('btn-client').classList.toggle('active', v==='client');
+  document.getElementById('btn-team').classList.toggle('active', v==='team');
+}
+
+/* ---------------- CLIENT VIEW DATA ---------------- */
+const STAGES = ['Collected','Received &amp; inspected','Processing','Recovered &amp; certified','Dispatched','Credit issued'];
+
+const LOTS_CLIENT = [
+  {
+    id:'RE-BAT-2409-114', currentStep:2, statusLabel:'Processing',
+    updated:"Last updated 2 hours ago · Vaitarna Recycling Facility, Bhiwandi",
+    impact:{received:'18.4t',recovered:'14.9t',rate:'81%',co2:'6.1t'},
+    eligibility:'Pending recovery certificate', eligState:'pending',
+    timeline:[
+      {date:'01 Sep 2026',title:'Collected from supplier',desc:'Documents and source verified against your registered collection agreement.',done:true},
+      {date:'02 Sep 2026',title:'Received at facility',desc:'Vehicle checked in, weighed, and material sampled for testing.',done:true},
+      {date:'02 Sep 2026',title:'Passed incoming inspection',desc:'Sample testing confirmed the material matches the declared category.',done:true},
+      {date:'03 Sep 2026',title:'Moved into processing',desc:'Sorted and issued to the recovery line in a tracked batch.',done:true},
+      {date:'Expected 6 Sep 2026',title:'Recovery certified',desc:'Final quality checks confirm the recovered material output.',done:false},
+      {date:'Expected 8 Sep 2026',title:'Dispatched with evidence',desc:'Invoice, test report and EPR documents issued together.',done:false},
+    ],
+    docs:[
+      {name:'Test report',meta:'Issued after lab QC',ready:true},
+      {name:'EPR recovery certificate',meta:'Issued after final QC',ready:false},
+      {name:'Dispatch evidence',meta:'Issued at dispatch',ready:false},
+      {name:'Invoice',meta:'Issued at dispatch',ready:false},
+    ]
+  },
+  {
+    id:'RE-BAT-2409-098', currentStep:4, statusLabel:'Dispatched',
+    updated:"Last updated yesterday · Vaitarna Recycling Facility, Bhiwandi",
+    impact:{received:'9.2t',recovered:'7.6t',rate:'83%',co2:'3.1t'},
+    eligibility:'Eligible — awaiting credit issue', eligState:'pending',
+    timeline:[
+      {date:'20 Aug 2026',title:'Collected from supplier',desc:'Documents and source verified against your registered collection agreement.',done:true},
+      {date:'21 Aug 2026',title:'Received at facility',desc:'Vehicle checked in, weighed, and material sampled for testing.',done:true},
+      {date:'21 Aug 2026',title:'Passed incoming inspection',desc:'Sample testing confirmed the material matches the declared category.',done:true},
+      {date:'22 Aug 2026',title:'Recovery certified',desc:'Final quality checks confirmed the recovered material output.',done:true},
+      {date:'26 Aug 2026',title:'Dispatched with evidence',desc:'Invoice, test report and EPR documents issued together.',done:true},
+      {date:'Pending',title:'EPR credit issued',desc:'Credit will appear in your compliance account once filed.',done:false},
+    ],
+    docs:[
+      {name:'Test report',meta:'Issued 22 Aug 2026',ready:true},
+      {name:'EPR recovery certificate',meta:'Issued 22 Aug 2026',ready:true},
+      {name:'Dispatch evidence',meta:'Issued 26 Aug 2026',ready:true},
+      {name:'Invoice',meta:'Issued 26 Aug 2026',ready:true},
+    ]
+  },
+  {
+    id:'RE-BAT-2408-231', currentStep:1, statusLabel:'On hold — quarantine',
+    updated:"Last updated 5 hours ago · Vaitarna Recycling Facility, Bhiwandi",
+    impact:{received:'4.0t',recovered:'—',rate:'—',co2:'—'},
+    eligibility:'Not yet eligible', eligState:'pending',
+    timeline:[
+      {date:'28 Aug 2026',title:'Collected from supplier',desc:'Documents and source verified against your registered collection agreement.',done:true},
+      {date:'29 Aug 2026',title:'Received at facility',desc:'Vehicle checked in, weighed, and material sampled for testing.',done:true},
+      {date:'29 Aug 2026',title:'Flagged for review',desc:'A sample result needs a second check before it can move forward. Our team is investigating — no action needed from you.',done:true},
+      {date:'Pending',title:'Processing',desc:'Will resume once the review is complete.',done:false},
+      {date:'Pending',title:'Recovery certified',desc:'Final quality checks confirm the recovered material output.',done:false},
+      {date:'Pending',title:'Dispatched with evidence',desc:'Invoice, test report and EPR documents issued together.',done:false},
+    ],
+    docs:[
+      {name:'Test report',meta:'Pending review outcome',ready:false},
+      {name:'EPR recovery certificate',meta:'Issued after final QC',ready:false},
+      {name:'Dispatch evidence',meta:'Issued at dispatch',ready:false},
+      {name:'Invoice',meta:'Issued at dispatch',ready:false},
+    ]
+  }
+];
+
+function docIconSvg(){
+  return '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 3h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" stroke="'+COLORS.greenDeep+'" stroke-width="1.5"/><path d="M14 3v5h5" stroke="'+COLORS.greenDeep+'" stroke-width="1.5"/></svg>';
+}
+
+function renderClient(){
+  const idx = parseInt(document.getElementById('lot-select').value,10);
+  const lot = LOTS_CLIENT[idx];
+
+  document.getElementById('c-lotid').textContent = lot.id;
+  document.getElementById('c-statuspill').textContent = lot.statusLabel;
+  document.getElementById('c-updated').textContent = lot.updated;
+  document.getElementById('i-received').textContent = lot.impact.received;
+  document.getElementById('i-recovered').textContent = lot.impact.recovered;
+  document.getElementById('i-rate').textContent = lot.impact.rate;
+  document.getElementById('i-co2').textContent = lot.impact.co2;
+  document.getElementById('c-elig').textContent = lot.eligibility;
+
+  // stepper
+  const stepper = document.getElementById('stepper');
+  let stepsHtml = '<div class="step-track"></div>';
+  const fillPct = lot.currentStep<=0 ? 0 : (lot.currentStep/(STAGES.length-1))*100;
+  stepsHtml += '<div class="step-line-fill" style="width:'+fillPct+'%"></div>';
+  STAGES.forEach((s,i)=>{
+    let cls='step';
+    if(i<lot.currentStep) cls+=' done';
+    else if(i===lot.currentStep) cls+=' current';
+    stepsHtml += '<div class="'+cls+'"><div class="step-node"></div><div class="step-label">'+s+'</div></div>';
+  });
+  stepper.innerHTML = stepsHtml;
+
+  // timeline
+  const tl = document.getElementById('c-timeline');
+  tl.innerHTML = lot.timeline.map(t=>{
+    return '<li class="'+(t.done?'':'pending')+'"><div class="t-date">'+t.date+'</div><div class="t-title">'+t.title+'</div><div class="t-desc">'+t.desc+'</div></li>';
+  }).join('');
+
+  // docs
+  const docs = document.getElementById('c-docs');
+  docs.innerHTML = lot.docs.map(d=>{
+    return '<div class="doc-card'+(d.ready?'':' locked')+'">'+
+      '<div class="doc-info"><div class="doc-icon">'+docIconSvg()+'</div>'+
+      '<div><div class="doc-name">'+d.name+'</div><div class="doc-meta">'+d.meta+'</div></div></div>'+
+      '<button class="doc-btn">'+(d.ready?'Download':'Not yet')+'</button></div>';
+  }).join('');
+}
+renderClient();
+
+/* ---------------- TEAM VIEW: pipeline SVG ---------------- */
+function buildFlowSvg(){
+  const W = 1580, H = 430;
+  const c = COLORS;
+
+  function box(x,y,w,h,label,sub,fill,strokeCol,textCol){
+    strokeCol = strokeCol || c.line;
+    textCol = textCol || c.ink;
+    let subline = sub ? '<text x="'+(x+w/2)+'" y="'+(y+h/2+14)+'" text-anchor="middle" font-family="IBM Plex Sans" font-size="10.5" fill="'+c.inkSoft+'">'+sub+'</text>' : '';
+    return '<g>'+
+      '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="6" fill="'+fill+'" stroke="'+strokeCol+'" stroke-width="1.3"/>'+
+      '<text x="'+(x+w/2)+'" y="'+(y+h/2+(sub?-1:4))+'" text-anchor="middle" font-family="IBM Plex Sans" font-size="12" font-weight="600" fill="'+textCol+'">'+label+'</text>'+
+      subline+
+      '</g>';
+  }
+  function arrow(x1,y1,x2,y2,col){
+    col = col || c.line;
+    const id = 'a'+Math.random().toString(36).slice(2,8);
+    return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+col+'" stroke-width="1.4" marker-end="url(#arrow-'+ (col===c.amber?'amber':col===c.rust?'rust':col===c.green?'green':'grey') +')"/>';
+  }
+
+  let defs = '<defs>'+
+    ['grey','green','amber','rust'].map(name=>{
+      const col = name==='grey'?c.line:name==='green'?c.green:name==='amber'?c.amber:c.rust;
+      return '<marker id="arrow-'+name+'" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="'+col+'"/></marker>';
+    }).join('')+
+    '</defs>';
+
+  const bw=118, bh=44, gap=26;
+  let x=14, y1=40;
+
+  // Row 1: inbound sequence
+  const row1 = ['Supplier','Doc &amp; source verify','Gate-in','Vehicle &amp; safety check','Weighbridge','Weight reconciliation','GRN','IQC + sampling'];
+  let boxesHtml='', arrowsHtml='';
+  let positions=[];
+  row1.forEach((label,i)=>{
+    const bx = x + i*(bw+gap);
+    positions.push({x:bx,y:y1,w:bw,h:bh});
+    boxesHtml += box(bx,y1,bw,bh,label,null,c.card);
+    if(i>0){
+      arrowsHtml += arrow(positions[i-1].x+bw, y1+bh/2, bx, y1+bh/2);
+    }
+  });
+
+  // branch down from IQC to Pass/Hold/Reject
+  const iqc = positions[positions.length-1];
+  const branchY = y1 + bh + 56;
+  const passX = iqc.x - 40, holdX = iqc.x + bw/2 - 55, rejX = iqc.x + bw + 20;
+  boxesHtml += box(passX, branchY, 100, 40, 'Pass', null, c.greenPale, c.green, c.greenDeep);
+  boxesHtml += box(holdX, branchY, 110, 40, 'Hold', null, c.amberPale, c.amber, '#7A4E1F');
+  boxesHtml += box(rejX, branchY, 110, 40, 'Reject', null, c.rustPale, c.rust, c.rust);
+  arrowsHtml += arrow(iqc.x+bw/2-30, y1+bh, passX+50, branchY, c.green);
+  arrowsHtml += arrow(iqc.x+bw/2, y1+bh, holdX+55, branchY, c.amber);
+  arrowsHtml += arrow(iqc.x+bw/2+30, y1+bh, rejX+55, branchY, c.rust);
+
+  // hold sub-branch
+  const holdY2 = branchY + 62;
+  boxesHtml += box(holdX-20, holdY2, 150, 40, 'Quarantine → investigate', null, c.amberPale, c.amber, '#7A4E1F');
+  arrowsHtml += arrow(holdX+55, branchY+40, holdX+55, holdY2, c.amber);
+  boxesHtml += box(holdX-20, holdY2+58, 150, 36, 'Release', null, c.greenPale, c.green, c.greenDeep);
+  boxesHtml += box(holdX+150, holdY2+58, 130, 36, 'Reject', null, c.rustPale, c.rust, c.rust);
+  arrowsHtml += arrow(holdX+55, holdY2+40, holdX+55, holdY2+58, c.green);
+  arrowsHtml += arrow(holdX+95, holdY2+40, holdX+215, holdY2+58, c.rust);
+
+  // reject sub
+  boxesHtml += box(rejX-15, branchY+62, 145, 40, 'Return / rework / disposal + evidence', null, c.rustPale, c.rust, c.rust);
+  arrowsHtml += arrow(rejX+55, branchY+40, rejX+55, branchY+62, c.rust);
+
+  // Pass path continues right along row1 baseline (offset)
+  const y2 = branchY + 150;
+  const row2 = ['Store put-away','Available inventory','EHS clearance','Issue request','Store approval','Material issue'];
+  let positions2=[];
+  let x2 = 14;
+  row2.forEach((label,i)=>{
+    const bx = x2 + i*(bw+gap);
+    positions2.push({x:bx,y:y2,w:bw,h:bh});
+    boxesHtml += box(bx,y2,bw,bh,label,null,c.card);
+    if(i>0){ arrowsHtml += arrow(positions2[i-1].x+bw, y2+bh/2, bx, y2+bh/2); }
+  });
+  arrowsHtml += arrow(passX+50, branchY+40, positions2[0].x+bw/2, y2, c.green);
+
+  // Row3: processing
+  const y3 = y2 + bh + 56;
+  const row3 = ['Processing batch','Sorting &amp; segregation','Sorting QC','IPQC','Processing / recovery','Output classification'];
+  let positions3=[];
+  let x3 = 14;
+  row3.forEach((label,i)=>{
+    const bx = x3 + i*(bw+gap);
+    positions3.push({x:bx,y:y3,w:bw,h:bh});
+    boxesHtml += box(bx,y3,bw,bh,label,null,c.card);
+    if(i>0){ arrowsHtml += arrow(positions3[i-1].x+bw, y3+bh/2, bx, y3+bh/2); }
+  });
+  arrowsHtml += arrow(positions2[positions2.length-1].x+bw/2, y2+bh, positions3[0].x+bw/2, y3);
+
+  // Row4 branch: recovered material vs residue
+  const y4 = y3 + bh + 56;
+  const lastIdx = positions3.length-1;
+  const recX = positions3[lastIdx].x - 60, resX = positions3[lastIdx].x + 90;
+  boxesHtml += box(recX, y4, 150, 40, 'Recovered material', null, c.greenPale, c.green, c.greenDeep);
+  boxesHtml += box(resX, y4, 150, 40, 'Residue / waste', null, c.amberPale, c.amber, '#7A4E1F');
+  arrowsHtml += arrow(positions3[lastIdx].x+bw/2-30, y3+bh, recX+75, y4, c.green);
+  arrowsHtml += arrow(positions3[lastIdx].x+bw/2+30, y3+bh, resX+75, y4, c.amber);
+
+  boxesHtml += box(recX, y4+56, 150, 40, 'Output lot ID → LQC → FQC', null, c.card);
+  arrowsHtml += arrow(recX+75, y4+40, recX+75, y4+56, c.green);
+  boxesHtml += box(resX, y4+56, 150, 40, 'Classify → treat / dispose', null, c.rustPale, c.rust, c.rust);
+  arrowsHtml += arrow(resX+75, y4+40, resX+75, y4+56, c.amber);
+
+  // Row5: outbound
+  const y5 = y4 + 56 + 40 + 46;
+  const row5 = ['Mass balance','Weight reconciliation','Evidence validation','EPR eligibility','FG inventory','Dispatch'];
+  let positions5=[];
+  let x5=14;
+  row5.forEach((label,i)=>{
+    const bx = x5 + i*(bw+gap);
+    positions5.push({x:bx,y:y5,w:bw,h:bh});
+    boxesHtml += box(bx,y5,bw,bh,label,null,c.card);
+    if(i>0){ arrowsHtml += arrow(positions5[i-1].x+bw, y5+bh/2, bx, y5+bh/2); }
+  });
+  arrowsHtml += arrow(recX+75, y4+96, positions5[0].x+bw/2, y5, c.green);
+
+  boxesHtml += box(positions5[positions5.length-1].x + bw + gap, y5, 220, bh, 'Invoice + test report + dispatch evidence', null, c.greenDeep, c.greenDeep, c.card);
+  arrowsHtml += arrow(positions5[positions5.length-1].x+bw, y5+bh/2, positions5[positions5.length-1].x+bw+gap, y5+bh/2, c.green);
+
+  const totalW = positions5[positions5.length-1].x + bw + gap + 220 + 20;
+  const totalH = y5 + bh + 20;
+
+  return '<svg viewBox="0 0 '+totalW+' '+totalH+'" width="'+totalW+'" height="'+totalH+'" xmlns="http://www.w3.org/2000/svg" style="min-width:'+totalW+'px;display:block;">'+defs+arrowsHtml+boxesHtml+'</svg>';
+}
+document.getElementById('flow-svg-holder').innerHTML = buildFlowSvg();
+
+/* ---------------- TEAM VIEW: active lots table ---------------- */
+const ACTIVE_LOTS = [
+  {id:'RE-BAT-2409-114', stage:'Processing / recovery', status:'progress', age:'2d 4h', owner:'Sorting line B'},
+  {id:'RE-BAT-2409-121', stage:'IQC + sampling', status:'progress', age:'6h', owner:'QC Lab'},
+  {id:'RE-BAT-2408-231', stage:'Quarantine — investigation', status:'hold', age:'1d 5h', owner:'QA — R. Menon'},
+  {id:'RE-BAT-2409-119', stage:'Gate-in', status:'progress', age:'40m', owner:'Yard'},
+  {id:'RE-BAT-2409-096', stage:'Sorting QC', status:'hold', age:'3d 1h', owner:'Sorting line A'},
+  {id:'RE-BAT-2409-090', stage:'IQC + sampling', status:'reject', age:'1d 9h', owner:'QC Lab'},
+  {id:'RE-BAT-2409-098', stage:'FG inventory', status:'pass', age:'—', owner:'Dispatch'},
+  {id:'RE-BAT-2409-102', stage:'Mass balance', status:'progress', age:'8h', owner:'Planning'},
+];
+const STAT_LABEL = {pass:'Pass',hold:'Hold',reject:'Reject',progress:'In progress'};
+document.getElementById('lots-body').innerHTML = ACTIVE_LOTS.map(l=>{
+  return '<tr><td class="lid">'+l.id+'</td><td class="row-stage">'+l.stage+'</td>'+
+    '<td><span class="tag '+l.status+'">'+STAT_LABEL[l.status]+'</span></td>'+
+    '<td>'+l.age+'</td><td>'+l.owner+'</td></tr>';
+}).join('');
+
+/* ---------------- TEAM VIEW: alerts ---------------- */
+const ALERTS = [
+  {sev:'sev-high', title:'Weight reconciliation variance 1.4%', sub:'RE-BAT-2409-102 — nearing ±1.5% tolerance, review before mass balance close.'},
+  {sev:'sev-high', title:'Quarantine hold open 29h', sub:'RE-BAT-2408-231 — awaiting QA investigation sign-off.'},
+  {sev:'sev-mid', title:'IQC reject pending disposal evidence', sub:'RE-BAT-2409-090 — return/rework decision needed.'},
+  {sev:'sev-mid', title:'Sorting QC hold — 2 lots', sub:'Line A output flagged for re-sort before IPQC.'},
+];
+document.getElementById('alerts-list').innerHTML = ALERTS.map(a=>{
+  return '<div class="alert '+a.sev+'"><div class="alert-dot"></div><div class="alert-txt"><div class="a-title">'+a.title+'</div><div class="a-sub">'+a.sub+'</div></div></div>';
+}).join('');
+
+/* ---------------- TEAM VIEW: QC snapshot ---------------- */
+const QC = [
+  {lbl:'IQC pass rate', val:'93.1%', pct:93},
+  {lbl:'IPQC pass rate', val:'89.4%', pct:89},
+  {lbl:'LQC pass rate', val:'96.0%', pct:96},
+  {lbl:'FQC pass rate', val:'97.2%', pct:97},
+];
+document.getElementById('qc-grid').innerHTML = QC.map(q=>{
+  return '<div class="qc-item"><div class="qc-lbl">'+q.lbl+'</div><div class="qc-val">'+q.val+'</div><div class="qc-bar"><i style="width:'+q.pct+'%"></i></div></div>';
+}).join('');
+</script>
+</body>
+</html>
